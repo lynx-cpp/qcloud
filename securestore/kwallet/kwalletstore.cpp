@@ -6,6 +6,7 @@ using KWallet::Wallet;
 
 KWalletStore::KWalletStore(QObject* parent) : ISecureStore(parent)
 {
+    qDebug() << "Creating KWalletStore Object...";
     m_wallet = Wallet::openWallet (Wallet::LocalWallet(), 0,
                                    Wallet::Synchronous);
     stat = NOT_SET;
@@ -22,6 +23,7 @@ KWalletStore::KWalletStore(QObject* parent) : ISecureStore(parent)
         qDebug() << "Could not use Wallet service, will use database to store passwords";
         stat = NOT_AVAILABLE;
     }
+    qDebug() << "KWalletStore created , pointer : " << this;
 }
 
 KWalletStore::~KWalletStore()
@@ -48,6 +50,7 @@ bool KWalletStore::writeItem (const QString& group, const QString& key, const QB
         if (m_wallet->writeEntry (kwalletKey, value) != 0)
             break;
         stat = SUCCEEDED;
+        qDebug() << "group " << group << " key " << key << " value " << value.toHex() << "written.";
         return true;
     } while(0);
     stat = FAILED;
@@ -65,6 +68,9 @@ bool KWalletStore::readItem (const QString& group, const QString& key, QByteArra
     if (m_wallet->readEntry (kwalletKey, value) != 0) {
         return false;
     }
+    qDebug() << "Read Value from Store : " << value.toHex();
+    if (value=="")
+        return false;
     stat = SUCCEEDED;
     return true;
 }
@@ -80,6 +86,7 @@ bool KWalletStore::deleteItem (const QString& group, const QString& key)
     if (m_wallet->removeEntry (kwalletKey) != 0) {
         return false;
     }
+    qDebug() << "group " << group << " key " << key << "deleted.";
     stat = SUCCEEDED;
     return true;
 }

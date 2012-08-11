@@ -8,6 +8,7 @@
 #include "request.h"
 #include "entryinfo.h"
 #include <QFileInfo>
+#include <QTemporaryFile>
 
 #include <QDebug>
 
@@ -15,6 +16,8 @@ Service::Service (Daemon* daemon) : Server (daemon)
     ,m_daemon(daemon)
 {
     currentRequestId = 0;
+    qDebug() << "Service : The SecureStore Pointer is " << m_daemon->secureStore();
+    encrypter = new QCloud::Encrypter(m_daemon->secureStore());
 }
 
 Service::~Service()
@@ -83,8 +86,22 @@ int Service::uploadFile (const QString& uuid, const QString& file, uint type, co
     Account *account = m_daemon->accountManager()->findAccount(uuid);
     if (!account)
         return -1;
-    GeneralRequestHandler* requestHandler = new GeneralRequestHandler(currentRequestId, this);
-    QCloud::Request* request = account->backend()->uploadFile(file, type, dest);
+    UploadRequestHandler* requestHandler = new UploadRequestHandler(currentRequestId, this);
+    
+    QTemporaryFile* tmpFile = new QTemporaryFile();
+    
+    if (!tmpFile->open())
+        return -1;
+    tmpFile->close();
+    QString fromFile = file;
+    if (account->app()->fileEncrypted()){
+        encrypter->encrypt(file,tmpFile->fileName());
+        qDebug() << "Encryption Finished";
+        fromFile = tmpFile->fileName();
+    }
+    requestHandler->setTmpFile(tmpFile);
+    
+    QCloud::Request* request = account->backend()->uploadFile(tmpFile->fileName(), type, dest);
     requestHandler->setRequest(request);
     connect(requestHandler, SIGNAL(uploadProgress(int,qint64, qint64)), SLOT(notifyUploadProgress(int,qint64, qint64)));
     return currentRequestId ++;
@@ -96,8 +113,24 @@ int Service::downloadFile (const QString& uuid, const QString& src, const QStrin
     Account *account = m_daemon->accountManager()->findAccount(uuid);
     if (!account)
         return -1;
-    GeneralRequestHandler* requestHandler = new GeneralRequestHandler(currentRequestId, this);
-    QCloud::Request* request = account->backend()->downloadFile(src, file, type);
+    DownloadRequestHandler* requestHandler = new DownloadRequestHandler(currentRequestId, this, m_daemon->secureStore());
+    
+    QTemporaryFile* tmpFile = new QTemporaryFile();
+    if (!tmpFile->open()){
+        qDebug() << "Cannot Create Temp File!";
+        return -1;
+    }
+    tmpFile->close();
+    QString dest = file;
+    requestHandler->setTmpFile(NULL);
+    if (account->app()->fileEncrypted()){
+        dest = tmpFile->fileName();
+        requestHandler->setTmpFile(tmpFile);
+        requestHandler->setDestFile(file);
+    }
+    
+    qDebug() << "Now Downloading " << src << " " << dest;
+    QCloud::Request* request = account->backend()->downloadFile(src, dest, type);
     requestHandler->setRequest(request);
     connect(requestHandler, SIGNAL(downloadProgress(int,qint64, qint64)), SLOT(notifyDownloadProgress(int,qint64, qint64)));
     return currentRequestId ++;
@@ -252,3 +285,60 @@ void GeneralRequestHandler::requestFinished()
     m_server->notifyRequestFinished(m_id, m_request->error());
     delete this;
 }
+
+void UploadRequestHandler::requestFinished()
+{
+    delete m_tmpFile;
+    GeneralRequestHandler::requestFinished();
+}
+
+void UploadRequestHandler::setTmpFile(QTemporaryFile* tmpFile)
+{
+    m_tmpFile = tmpFile;
+}
+
+UploadRequestHandler::UploadRequestHandler(int id, QCloud::Server* server): GeneralRequestHandler(id, server)
+{
+    m_id = id;
+    m_server = server;
+}
+
+UploadRequestHandler::~UploadRequestHandler()
+{
+
+}
+
+DownloadRequestHandler::DownloadRequestHandler(int id, QCloud::Server* server, QCloud::ISecureStore* secureStore): GeneralRequestHandler(id, server)
+{
+    m_id = id;
+    m_server = server;
+    encrypter = new QCloud::Encrypter(secureStore);
+}
+
+void DownloadRequestHandler::requestFinished()
+{
+    if (m_tmpFile!=NULL){
+        qDebug() << "Tmp file Not Null , now decrypting...";
+        encrypter->decrypt(m_tmpFile->fileName(),m_dest);
+        delete m_tmpFile;
+    }
+    else
+        qDebug() << "NULL tmp file, download finished.";
+    GeneralRequestHandler::requestFinished();
+}
+
+void DownloadRequestHandler::setDestFile(const QString& dest)
+{
+    m_dest = dest;
+}
+
+void DownloadRequestHandler::setTmpFile(QTemporaryFile* tmpFile)
+{
+    m_tmpFile = tmpFile;
+}
+
+DownloadRequestHandler::~DownloadRequestHandler()
+{
+
+}
+

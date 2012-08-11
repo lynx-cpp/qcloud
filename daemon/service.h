@@ -2,9 +2,12 @@
 #define SERVICE_H
 
 #include <QCoreApplication>
+#include <QMap>
+#include <QTemporaryFile>
 #include "server.h"
 #include "entryinfo.h"
 #include "requesthandler.h"
+#include "encrypter.h"
 
 class Daemon;
 class QNetworkAccessManager;
@@ -31,6 +34,7 @@ public:
     virtual int fetchInfo (const QString& uuid, const QString& directory);
 
 private:
+    QCloud::Encrypter *encrypter;
     Daemon* m_daemon;
     int currentRequestId;
 };
@@ -78,5 +82,39 @@ public slots:
     virtual void requestFinished();
 };
 
+class UploadRequestHandler : public GeneralRequestHandler
+{
+    Q_OBJECT
+    friend class Service;
+public:
+    explicit UploadRequestHandler(int id, QCloud::Server* server);
+    virtual ~UploadRequestHandler();
+    void setTmpFile(QTemporaryFile* tmpFile);
+    
+public slots:
+    virtual void requestFinished();
+    
+protected:
+    QTemporaryFile* m_tmpFile;
+};
+
+class DownloadRequestHandler : public GeneralRequestHandler
+{
+    Q_OBJECT
+    friend class Service;
+public:
+    explicit DownloadRequestHandler(int id, QCloud::Server* server,QCloud::ISecureStore* secureStore);
+    virtual ~DownloadRequestHandler();
+    void setTmpFile(QTemporaryFile* tmpFile);
+    void setDestFile(const QString& dest);
+    
+public slots:
+    virtual void requestFinished();
+    
+protected:
+    QCloud::Encrypter *encrypter;
+    QTemporaryFile* m_tmpFile;
+    QString m_dest;
+};
 
 #endif // SERVICE_H

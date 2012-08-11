@@ -8,13 +8,13 @@ namespace QCloud
 {
 class EncrypterPrivate {
 public:
-    explicit EncrypterPrivate(Encrypter* encrypter);
+    explicit EncrypterPrivate(Encrypter* encrypter,ISecureStore* storage);
     virtual ~EncrypterPrivate();
 
     bool init();
     void generateKey(QCA::SymmetricKey& key);
     bool hasKey;
-    ISecureStore *storage;
+    ISecureStore *m_storage;
     QCA::SymmetricKey key;
     QCA::Initializer initQCA;
     Encrypter* p;

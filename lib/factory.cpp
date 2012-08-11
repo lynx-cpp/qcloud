@@ -31,8 +31,10 @@ FactoryPrivate::~FactoryPrivate()
 
 void FactoryPrivate::scan()
 {
-    foreach (const QString & category, categoryMap.keys())
+    foreach (const QString & category, categoryMap.keys()){
+        qDebug() << "Scanning category : " << category;
         scan (category);
+    }
 
     foreach (QPluginLoader * loader, plugins["backend"].values()) {
         IPlugin* backend = qobject_cast<IPlugin*> (loader->instance());
@@ -50,6 +52,8 @@ void FactoryPrivate::scan (const QString& category)
         qDebug() << QString ("Checking Qt Library Path: %1").arg (*it);
         QDir libpath (*it);
         QDir dir (libpath.filePath (QString (PLUGIN_SUBDIR "/%1").arg (category)));
+        //QString curPath = libpath.filePath (QString (PLUGIN_SUBDIR "/%1").arg (category));
+        //qDebug() << "   Real Path : " << curPath;
         if (!dir.exists()) {
             continue;
         }
@@ -67,16 +71,20 @@ void FactoryPrivate::scan (const QString& category)
 
             QString filePath = fi.filePath(); // file name with path
             QString fileName = fi.fileName(); // just file name
+            qDebug() << "\tCurrently loading library : " << filePath;
 
             if (!QLibrary::isLibrary (filePath)) {
+                qDebug() << "\t\tNot a library!";
                 continue;
             }
 
             QPluginLoader* loader = new QPluginLoader (filePath, p);
             IPlugin* plugin = qobject_cast< IPlugin* > (loader->instance());
             if (plugin) {
-                if (plugin->category() == categoryMap[category])
+                if (plugin->category() == categoryMap[category]){
                     plugins[category][plugin->name()] = loader;
+                    qDebug() << "\t\tPlugin : " << category << " : " << plugin->name() << " loaded";
+                }
                 else
                     qDebug() << filePath << " is not a " << category  << "plugin!";
 
@@ -126,8 +134,7 @@ IBackend* Factory::createBackend (const QString& name, QObject* parent)
             }
 
             backend->setInfo(*plugin);
-            return backend;
-        } while(0);
+            return backend; } while(0);
     }
     return NULL;
 }
@@ -143,8 +150,10 @@ QNetworkAccessManager* Factory::createNetwork (const QString& name, QObject* par
 ISecureStore* Factory::createSecureStore (const QString& name, QObject* parent)
 {
     IPlugin* plugin = d->loadPlugin ("securestore", name);
+    qDebug() << "Creating SecureStore Object...";
     if (plugin)
         return qobject_cast<ISecureStore*> (plugin->create(parent));
+    qDebug() << "No SecureStore Plugin.";
     return NULL;
 }
 

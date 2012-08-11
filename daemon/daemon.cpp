@@ -1,6 +1,7 @@
 #include <QNetworkAccessManager>
 #include <QTimer>
 #include <QSessionManager>
+#include <QDebug>
 
 #include "daemon.h"
 #include "service.h"
@@ -13,6 +14,7 @@ Daemon::Daemon (int& argc, char** argv) : QApplication (argc, argv)
     ,m_service(new Service(this))
     ,m_networkPluginName("general")
 {
+    qDebug() << "Daemon : The SecureStore pointer is " << m_secureStore;
     if (!m_service->isValid()) {
         QTimer::singleShot(0, this, SLOT(quit()));
         return;

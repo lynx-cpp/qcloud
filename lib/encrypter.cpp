@@ -20,8 +20,10 @@ inline static void clearString(QByteArray& st)
     st = "";
 }
 
-EncrypterPrivate::EncrypterPrivate(Encrypter* encrypter) : p(encrypter)
+EncrypterPrivate::EncrypterPrivate(Encrypter* encrypter,ISecureStore* storage) : p(encrypter)
 {
+    m_storage = storage;
+    hasKey = false;
 }
 
 EncrypterPrivate::~EncrypterPrivate()
@@ -29,18 +31,19 @@ EncrypterPrivate::~EncrypterPrivate()
 }
 
 bool EncrypterPrivate::init() {
-    if (storage==NULL || (!storage->isAvailable())) {
+    qDebug() << "storage : " << m_storage;
+    if (m_storage==NULL || (!m_storage->isAvailable())) {
         qDebug() << "SecureStore is not available";
         return false;
     }
     if (!hasKey) {
         qDebug() << "Key not found , assume it is the first time to run encrypt/decrypt";
         QByteArray key_value;
-        if (!storage->readItem(GROUP_NAME, KEY_NAME, key_value)) {
+        if (!m_storage->readItem(GROUP_NAME, KEY_NAME, key_value)) {
             qDebug() << "Failed getting key , generating new value from user input";
             generateKey(key);
             qDebug() << "Finished generating.";
-            bool flag = storage->writeItem(GROUP_NAME, KEY_NAME, key.toByteArray());
+            bool flag = m_storage->writeItem(GROUP_NAME, KEY_NAME, key.toByteArray());
             qDebug() << "Finished Writing key";
             if (!flag) {
                 qDebug() << "Failed setting one of the items";
@@ -73,8 +76,10 @@ void EncrypterPrivate::generateKey(QCA::SymmetricKey& key) {
 }
 
 Encrypter::Encrypter(ISecureStore *storage) :
-    d(new EncrypterPrivate(this))
+    d(new EncrypterPrivate(this,storage))
 {
+    qDebug() << "Encrypter : The SecureStore Pointer is " << storage;
+    qDebug() << "Availability : " << storage->isAvailable();
 }
 
 Encrypter::~Encrypter()
@@ -102,8 +107,11 @@ bool Encrypter::encrypt(const QString& fileName,const QString& outputFile)
         writeFile.close();
         return false;
     }
+    qDebug() << "File Checked Ok";
+    
     QCA::InitializationVector iv = QCA::InitializationVector(IV_LEN);
     writeFile.write(iv.toByteArray());
+    qDebug() << "Start Init...";
     if (!d->init())
         return false;
 
@@ -162,6 +170,7 @@ bool Encrypter::decrypt(const QString& fileName,const QString& outputFile)
         writeFile.close();
         return false;
     }
+    qDebug() << "File Checked Ok";
 
     QCA::InitializationVector iv = QCA::InitializationVector(readFile.read(IV_LEN));
     qDebug() << "Read IV " << QCA::arrayToHex(iv.toByteArray());
@@ -187,6 +196,7 @@ bool Encrypter::decrypt(const QString& fileName,const QString& outputFile)
             writeFile.close();
             return false;
         }
+        qDebug() << "key : " << d->key.toByteArray().toHex();
         cipher.setup(QCA::Decode,d->key,iv);
         bufRegion = cipher.process(QCA::SecureArray(buf));
         if ((bufRegion.toByteArray())==ENCRYPTER_TEST_CONTENT) {
@@ -194,7 +204,7 @@ bool Encrypter::decrypt(const QString& fileName,const QString& outputFile)
             break;
         }
         d->hasKey = false;
-        d->storage->deleteItem(GROUP_NAME, KEY_NAME);
+        d->m_storage->deleteItem(GROUP_NAME, KEY_NAME);
         qDebug() << "Password incorrect! Decrypted content is " << QCA::arrayToHex(bufRegion.toByteArray());
         cnt ++;
     }

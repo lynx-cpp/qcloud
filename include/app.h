@@ -16,6 +16,7 @@ public:
     const QString& iconName() const;
     const QString& description() const;
     const QString& displayName() const;
+    bool fileEncrypted() const;
     QSettings* settings();
 
 private:
@@ -23,6 +24,7 @@ private:
     QString m_iconName;
     QString m_description;
     QString m_displayName;
+    bool m_fileEncrypted;
     QScopedPointer<QSettings> m_settings;
 };
 }

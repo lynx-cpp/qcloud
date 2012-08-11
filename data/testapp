@@ -2,6 +2,7 @@
 Name=Test App
 IconName=qcloud
 Description=Test App
+FileEncryption=true
 
 [Dropbox]
 AppKey=d2anwsztkcu1upz
